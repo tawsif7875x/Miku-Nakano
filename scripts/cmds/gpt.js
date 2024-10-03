@@ -1,192 +1,146 @@
-const axios = require('axios');
-
-// config 
-const apiKey = "";
-const maxTokens = 500;
-const numberGenerateImage = 4;
-const maxStorageMessage = 4;
-
-if (!global.temp.openAIUsing)
-	global.temp.openAIUsing = {};
-if (!global.temp.openAIHistory)
-	global.temp.openAIHistory = {};
-
-const { openAIUsing, openAIHistory } = global.temp;
+//this is still under development and still in test. 
+const { post, get } = require("axios");
 
 module.exports = {
-	config: {
-		name: "gpt",
-		version: "1.4",
-		author: "NTKhang",
-		countDown: 5,
-		role: 0,
-		description: {
-			vi: "GPT chat",
-			en: "GPT chat"
-		},
-		category: "box chat",
-		guide: {
-			vi: "   {pn} <draw> <nội dung> - tạo hình ảnh từ nội dung"
-				+ "\n   {pn} <clear> - xóa lịch sử chat với gpt"
-				+ "\n   {pn} <nội dung> - chat với gpt",
-			en: "   {pn} <draw> <content> - create image from content"
-				+ "\n   {pn} <clear> - clear chat history with gpt"
-				+ "\n   {pn} <content> - chat with gpt"
-		}
-	},
+  config: { 
+name: "gpt", 
+category: "ai" 
+},
+  onStart() {},
+  
+  onChat: async ({ message: { reply: r }, args: a, event: { senderID: s, threadID: t, body: b, messageReply: msg }, commandName, usersData }) => {
+const cmd = `${module.exports.config.name}`;
+const pref = `${utils.getPrefix(t)}`;
+const p = [`${pref}${cmd}`, `${cmd}`];
+    if (a[0] && p.some(x => a[0].toLowerCase() === x)) {
+      const p = a.slice(1), allow = ["lover", "helpful", "friendly", "toxic", "bisaya", "horny", "tagalog", "makima", "godmode", "default"];
+      const num = allow.map((i, x) => `${x + 1}. ${i}`).join("\n");
+      const { name, settings, gender } = await usersData.get(s);
+      const gen = gender === 2 ? 'male' : 'female';
+      const sys = settings.system || "helpful";
 
-	langs: {
-		vi: {
-			apiKeyEmpty: "Vui lòng cung cấp api key cho openai tại file scripts/cmds/gpt.js",
-			invalidContentDraw: "Vui lòng nhập nội dung bạn muốn vẽ",
-			yourAreUsing: "Bạn đang sử dụng gpt chat, vui lòng chờ quay lại sau khi yêu cầu trước kết thúc",
-			processingRequest: "Đang xử lý yêu cầu của bạn, quá trình này có thể mất vài phút, vui lòng chờ",
-			invalidContent: "Vui lòng nhập nội dung bạn muốn chat",
-			error: "Đã có lỗi xảy ra\n%1",
-			clearHistory: "Đã xóa lịch sử chat của bạn với gpt"
-		},
-		en: {
-			apiKeyEmpty: "Please provide api key for openai at file scripts/cmds/gpt.js",
-			invalidContentDraw: "Please enter the content you want to draw",
-			yourAreUsing: "You are using gpt chat, please wait until the previous request ends",
-			processingRequest: "Processing your request, this process may take a few minutes, please wait",
-			invalidContent: "Please enter the content you want to chat",
-			error: "An error has occurred\n%1",
-			clearHistory: "Your chat history with gpt has been deleted"
-		}
-	},
+      if (!p.length) return r(`Hello ${name}, choose your assistant:\n${num}\nExample: ${cmd} set friendly`);
 
-	onStart: async function ({ message, event, args, getLang, prefix, commandName }) {
-		if (!apiKey)
-			return message.reply(getLang('apiKeyEmpty', prefix));
+   if (p[0].toLowerCase() === "set" && p[1]?.toLowerCase()) {
+        const choice = p[1].toLowerCase();
+        if (allow.includes(choice)) {
+          await usersData.set(s, { settings: { system: choice } });
+          return r(`Assistant changed to ${choice}`);
+        }
+        return r(`Invalid choice.\nAllowed: ${num}\nExample: ai set friendly`);
+      }
 
-		switch (args[0]) {
-			case 'img':
-			case 'image':
-			case 'draw': {
-				if (!args[1])
-					return message.reply(getLang('invalidContentDraw'));
-				if (openAIUsing[event.senderID])
-					return message.reply(getLang("yourAreUsing"));
+      const { result, media } = await ai(p.join(" "), s, name, sys, gen);
 
-				openAIUsing[event.senderID] = true;
-
-				let sending;
-				try {
-					sending = message.reply(getLang('processingRequest'));
-					const responseImage = await axios({
-						url: "https://api.openai.com/v1/images/generations",
-						method: "POST",
-						headers: {
-							"Authorization": `Bearer ${apiKey}`,
-							"Content-Type": "application/json"
-						},
-						data: {
-							prompt: args.slice(1).join(' '),
-							n: numberGenerateImage,
-							size: '1024x1024'
-						}
-					});
-					const imageUrls = responseImage.data.data;
-					const images = await Promise.all(imageUrls.map(async (item) => {
-						const image = await axios.get(item.url, {
-							responseType: 'stream'
-						});
-						image.data.path = `${Date.now()}.png`;
-						return image.data;
-					}));
-					return message.reply({
-						attachment: images
-					});
-				}
-				catch (err) {
-					const errorMessage = err.response?.data.error.message || err.message;
-					return message.reply(getLang('error', errorMessage || ''));
-				}
-				finally {
-					delete openAIUsing[event.senderID];
-					message.unsend((await sending).messageID);
-				}
-			}
-			case 'clear': {
-				openAIHistory[event.senderID] = [];
-				return message.reply(getLang('clearHistory'));
-			}
-			default: {
-				if (!args[0])
-					return message.reply(getLang('invalidContent'));
-
-				handleGpt(event, message, args, getLang, commandName);
-			}
-		}
-	},
-
-	onReply: async function ({ Reply, message, event, args, getLang, commandName }) {
-		const { author } = Reply;
-		if (author != event.senderID)
-			return;
-
-		handleGpt(event, message, args, getLang, commandName);
-	}
-};
-
-async function askGpt(event) {
-	const response = await axios({
-		url: "https://api.openai.com/v1/chat/completions",
-		method: "POST",
-		headers: {
-			"Authorization": `Bearer ${apiKey}`,
-			"Content-Type": "application/json"
-		},
-		data: {
-			model: "gpt-3.5-turbo",
-			messages: openAIHistory[event.senderID],
-			max_tokens: maxTokens,
-			temperature: 0.7
-		}
-	});
-	return response;
+let attachments;
+if (media && media.startsWith("https://cdn")) {
+    attachments = await global.utils.getStreamFromURL(media, "spotify.mp3");
+} else if (media) {
+    attachments = await global.utils.getStreamFromURL(media);
 }
 
-async function handleGpt(event, message, args, getLang, commandName) {
-	try {
-		openAIUsing[event.senderID] = true;
+const rs = {
+    body: result,
+    mentions: [{ id: s, tag: name }]
+};
 
-		if (
-			!openAIHistory[event.senderID] ||
-			!Array.isArray(openAIHistory[event.senderID])
-		)
-			openAIHistory[event.senderID] = [];
+if (attachments) {
+   rs.attachment = attachments;
+}
 
-		if (openAIHistory[event.senderID].length >= maxStorageMessage)
-			openAIHistory[event.senderID].shift();
+  const { messageID: m } = await r(rs);
+  global.GoatBot.onReply.set(m, { commandName, s });
+    }
+  },
+ onReply: async ({ 
+    Reply: { s, commandName }, 
+    message: { reply: r }, 
+    args: a, 
+    event: { senderID: x, body: b, attachments, threadID: t }, 
+    usersData 
+}) => {
+const cmd = `${module.exports.config.name}`;
+const pref = `${utils.getPrefix(t)}`;
+    const { name, settings, gender } = await usersData.get(x);
+    const sys = settings.system || "helpful";
+    if (s !== x || b?.toLowerCase().startsWith(cmd) || b?.toLowerCase().startsWith(pref + cmd) || b?.toLowerCase().startsWith(pref + "unsend")) return;
+    let url = "";
+    let body = a.join(" ");
+    if (!b.includes(".")) {
+     const img = attachments?.[0];
+      if (img) {
+     body = img.type === "sticker" && img.ID === "369239263222822" ? "👍" : body;
+            url = img.url || "";
+        }
+    }
+    body = body  || ".";
+const { result, media } = await ai(body, s, name, sys, gender === 2 ? 'male' : 'female', url);
+const rs = {
+    body: result,
+    mentions: [{ id: x, tag: name }]
+};
+if (media) {
+    if (media.startsWith('https://cdn')) {
+        rs.attachment = await global.utils.getStreamFromURL(media, "spotify.mp3");
+    } else {
+        rs.attachment = await global.utils.getStreamFromURL(media);
+    }
+}
+ const { messageID } = await r(rs);       global.GoatBot.onReply.set(messageID, { commandName, s, sys });
+}
+};
+//llama3-70b-8192
+async function ai(prompt, id, name, system, gender, link = "") {
+  const g4o = async (p, m = "gemma2-9b-it") => post(atob(String.fromCharCode(...atob((await get(atob("aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2p1bnpkZXZvZmZpY2lhbC90ZXN0L3JlZnMvaGVhZHMvbWFpbi90ZXN0LnR4dA=="))).data).split(" ").map(Number))),
+    { 
+      id, 
+      prompt: p, 
+      name, 
+      model: "llama", 
+      system, 
+   customSystem: [
+    {
+default: "You are helpful assistant"
+    },
+    {
+       makima: "You are a friendly  assistant, your name is makima"
+      }
+],
+      gender, 
+      nsfw: true,
+      url: link ? { link, type: "image" } : undefined,
+config: [{ 
+ gemini: {
+ apikey: "AIzaSyAqigdIL9j61bP-KfZ1iz6tI9Q5Gx2Ex_o", 
+model:  "gemini-1.5-flash"
+},
+llama: { model: m }
+}]
+    },
+    {
+      headers: { 
+        'Content-Type': 'application/json', 
+        'Authorization': 'Bearer test' 
+      } 
+    });
 
-		openAIHistory[event.senderID].push({
-			role: 'user',
-			content: args.join(' ')
-		});
+  try {
+    let res = await g4o(prompt);
+    if (["i cannot", "i can't"].some(x => res.data.result.toLowerCase().startsWith(x))) {
+      await g4o("clear");
+      res = await g4o(prompt, "llama-3.1-70b-versatile");
+    }
+    return res.data;
+  } catch {
+    try {
+    //  await g4o("clear");
+      return (await g4o(prompt, "llama-3.1-70b-versatile")).data;
+    } catch (err) {
+      const e = err.response?.data;
+      const errorMessage = typeof e === 'string' ? e : JSON.stringify(e);
 
-		const response = await askGpt(event);
-		const text = response.data.choices[0].message.content;
-
-		openAIHistory[event.senderID].push({
-			role: 'assistant',
-			content: text
-		});
-
-		return message.reply(text, (err, info) => {
-			global.GoatBot.onReply.set(info.messageID, {
-				commandName,
-				author: event.senderID,
-				messageID: info.messageID
-			});
-		});
-	}
-	catch (err) {
-		const errorMessage = err.response?.data.error.message || err.message || "";
-		return message.reply(getLang('error', errorMessage));
-	}
-	finally {
-		delete openAIUsing[event.senderID];
-	}
+      return errorMessage.includes("Payload Too Large") ? { result: "Your text is too long" } :            errorMessage.includes("Service Suspended") ? { result: "The API has been suspended, please wait for the dev to replace the API URL"  }:
+            { result: e?.error || e || err.message };
+    }
+  }
 }
