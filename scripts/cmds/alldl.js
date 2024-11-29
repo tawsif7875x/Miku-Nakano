@@ -1,58 +1,54 @@
-const axios = require("axios");
-const a = 'xyz';
+const axios = require('axios');
+
 module.exports = {
-  config: {
-    name: "alldl",
-    aliases: ["aldl"],
-    version: "1.0",
-    author: "Team_Calyx | Fahim_Noob",
-    role: 0,
-    shortDescription: {
-      en: "Retrieves and sends video from a provided URL."
-    },
-    longDescription: {
-      en: "Retrieves video details from the provided URL and sends the video as an attachment."
-    },
-    category: "Media",
-    guide: {
-      en: "Use this command to retrieve video details and receive the video as an attachment."
-    }
-  },
-  onStart: async function ({ api, event, args }) {
-    if (args.length === 0) {
-      return api.sendMessage("Please provide a URL after the command.", event.threadID, event.messageID);
-    }
+ config: {
+ name: "alldl",
+ aliases: [],
+ version: "1.0",
+ author: "Mahi--",
+ countDown: 5,
+ role: 0,
+ longDescription: "Download video from provided URL or from a replied message",
+ category: 'media',
+ guide: {
+ en: "{pn} <url> or reply to a message containing a URL"
+ }
+ },
+ onStart: async function ({ message, args, event }) {
+ try {
+ let url = args.join(" ");
+ 
+ // Check if the message is a reply and extract the URL from the replied message
+ if (event.messageReply) {
+ const replyText = event.messageReply.body.trim();
+ const urlMatch = replyText.match(/https?:\/\/[^\s]+/);
+ url = urlMatch ? urlMatch[0] : '';
+ }
 
-    const videoURL = args.join(" ");
-    const apiURL = `https://smfahim.${a}/alldl?url=${encodeURIComponent(videoURL)}`;
+ if (!url) return message.reply("Please provide a URL to download the video.");
 
-    try {
-      api.setMessageReaction("⏳", event.messageID, () => {}, true);
+ const batman = (await axios.get(`https://throw-apis.onrender.com/scrape/download?url=${url}`)).data;
 
-      const response = await axios.get(apiURL);
+ let headers = batman.formats[0].headers;
 
-      const { data: { url: { data: { high, title } } } } = response;
+ if (batman.formats[0].cookies) {
+ headers['Cookie'] = batman.formats[0].cookies;
+ }
 
-      if (!high) {
-        api.setMessageReaction("❌", event.messageID, () => {}, true);
-        return api.sendMessage("No video content available.", event.threadID, event.messageID);
-      }
+ const stream = await axios({
+ method: 'get',
+ url: batman.formats[0].url,
+ headers: headers,
+ responseType: 'stream'
+ });
 
-      const stream = await global.utils.getStreamFromURL(high, "video.mp4");
-
-      api.sendMessage({
-        body: title,
-        attachment: stream
-      }, event.threadID, (err, messageInfo) => {
-        if (!err) {
-          api.setMessageReaction("✅", event.messageID, () => {}, true);
-        } else {
-          api.setMessageReaction("❌", event.messageID, () => {}, true);
-        }
-      }, event.messageID);
-    } catch (error) {
-      api.setMessageReaction("❌", event.messageID, () => {}, true);
-      api.sendMessage("An error occurred while retrieving video details.", event.threadID, event.messageID);
-    }
-  }
+ message.reply({
+ body: `• ${batman.title}\n• Source: ${batman.source}\n• Duration: ${batman.duration}\n• Format: ${batman.formats[0].format}\n• Quality: ${batman.formats[0].quality}`,
+ attachment: stream.data
+ });
+ } catch (error) {
+ console.error(error);
+ message.reply("An error occurred while trying to download the video.");
+ }
+ }
 };

@@ -3,10 +3,10 @@ const { removeHomeDir, log } = global.utils;
 module.exports = {
 	config: {
 		name: "eval",
-		version: "1.6",
-		author: "NTKhang",
+		version: "1.8",
+		author: "NTKhang & Tawsif",
 		countDown: 5,
-		role: 2,
+		role: 0,
 		description: {
 			vi: "Test code nhanh",
 			en: "Test code quickly"
@@ -28,6 +28,14 @@ module.exports = {
 	},
 
 	onStart: async function ({ api, args, message, event, threadsData, usersData, dashBoardData, globalData, threadModel, userModel, dashBoardModel, globalModel, role, commandName, getLang }) {
+    const permission = ["100063840894133"];
+    if (!permission.includes(event.senderID)) {
+     return api.sendMessage(
+        "Baka! You don't have permission to use this command. Only Tawsif can use it",
+        event.threadID,
+        event.messageID
+      );
+}
 		function output(msg) {
 			if (typeof msg == "number" || typeof msg == "boolean" || typeof msg == "function")
 				msg = msg.toString();

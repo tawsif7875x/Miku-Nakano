@@ -8,7 +8,7 @@ const axios = require("axios");
 module.exports = async function (cookie, userAgent) {
 	try {
 		const response = await axios({
-			url: 'https://mbasic.facebook.com/settings',
+			url: 'https://mbasic.facebook.com/settings/',
 			method: "GET",
 			headers: {
 				cookie,

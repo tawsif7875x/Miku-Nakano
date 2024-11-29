@@ -7,7 +7,7 @@ module.exports = {
     author: "Kshitiz",
     description: "Shorten URLs using TinyURL",
     usage: "{p}tinyurl(replied).",
-    category: "Utility",
+    category: "tools",
     role: 0,
   },
 

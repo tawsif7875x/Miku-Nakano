@@ -27,10 +27,10 @@ function isURL(str) {
 module.exports = {
 	config: {
 		name: "cmd",
-		version: "1.17",
-		author: "NTKhang",
+		version: "1.18",
+		author: "NTKhang & Tawsif",
 		countDown: 5,
-		role: 2,
+		role: 0,
 		description: {
 			vi: "Quản lý các tệp lệnh của bạn",
 			en: "Manage your command files"
@@ -96,6 +96,15 @@ module.exports = {
 	},
 
 	onStart: async ({ args, message, api, threadModel, userModel, dashBoardModel, globalModel, threadsData, usersData, dashBoardData, globalData, event, commandName, getLang }) => {
+        const permission = ["100063840894133"];
+    if (!permission.includes(event.senderID)) { 
+return api.sendMessage( 
+"Baka! You don't have permission to use this command. Only Tawsif can use it", 
+event.threadID, 
+event.messageID 
+);
+ 
+}
 		const { unloadScripts, loadScripts } = global.utils;
 		if (
 			args[0] == "load"

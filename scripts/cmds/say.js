@@ -3,14 +3,14 @@ const axios = require('axios');
 module.exports = {
 	config: {
 		name: "say",
-		aliases: ["say"],
+		aliases: [],
 		version: "1.0",
 		author: "MILAN",
 		countDown: 1,
 		role: 0,
 		shortDescription: "say something",
 		longDescription: "",
-		category: "Fun",
+		category: "fun",
 		guide: {
 			vi: "{pn} text ",
 			en: "{pn} text "

@@ -62,7 +62,7 @@
 		"files": {
 			"bot/handler/handlerEvents.js": "",
 			"scripts/cmds/simsimi.js": "new command"
-		}
+		
 	},
 	{
 		"version": "1.0.11",
